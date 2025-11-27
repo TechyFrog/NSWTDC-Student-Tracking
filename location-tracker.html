@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Location Tracker">
+    <meta name="theme-color" content="#667eea">
+    <meta name="description" content="Real-time GPS location sharing with multiple users">
+    
+    <title>Live Location Tracker</title>
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- App Icons -->
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .header h1 {
+            color: #667eea;
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .name-input {
+            padding: 10px 15px;
+            border: 2px solid #667eea;
+            border-radius: 8px;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.3s;
+        }
+
+        .name-input:focus {
+            border-color: #764ba2;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+        }
+
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .status {
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .status.active {
+            background: #10b981;
+            color: white;
+        }
+
+        .status.inactive {
+            background: #6b7280;
+            color: white;
+        }
+
+        .status.warning {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: white;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            padding: 20px;
+            gap: 20px;
+            max-width: 1400px;
+            width: 100%;
+            margin: 0 auto;
+        }
+
+        .sidebar {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            padding: 20px;
+            width: 300px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            overflow-y: auto;
+            max-height: calc(100vh - 140px);
+        }
+
+        .sidebar h2 {
+            color: #667eea;
+            font-size: 18px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .pwa-install-banner {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            font-size: 12px;
+            display: none;
+        }
+
+        .pwa-install-banner.show {
+            display: block;
+        }
+
+        .pwa-install-banner button {
+            margin-top: 8px;
+            width: 100%;
+        }
+
+        .accuracy-info {
+            background: #f0f4ff;
+            border-left: 3px solid #667eea;
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #4b5563;
+        }
+
+        .accuracy-info strong {
+            color: #667eea;
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .user-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .user-card {
+            background: white;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .user-card:hover {
+            border-color: #667eea;
+            transform: translateX(5px);
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+        }
+
+        .user-card.active {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+
+        .user-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .user-name {
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .user-time {
+            font-size: 11px;
+            color: #6b7280;
+        }
+
+        .user-accuracy {
+            font-size: 10px;
+            color: #10b981;
+            margin-top: 2px;
+        }
+
+        .map-container {
+            flex: 1;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+            min-height: 500px;
+        }
+
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            text-align: center;
+            color: #6b7280;
+        }
+
+        .empty-state svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        .empty-state h3 {
+            font-size: 18px;
+            margin-bottom: 8px;
+        }
+
+        .empty-state p {
+            font-size: 14px;
+        }
+
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 10000;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .modal-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-icon.warning {
+            background: #fef3c7;
+            color: #f59e0b;
+        }
+
+        .modal-icon.error {
+            background: #fee2e2;
+            color: #ef4444;
+        }
+
+        .modal-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #1f2937;
+        }
+
+        .modal-body {
+            color: #4b5563;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        .modal-body ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+
+        .modal-body li {
+            margin: 5px 0;
+        }
+
+        .modal-footer {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .accuracy-circle {
+            fill: #667eea;
+            fill-opacity: 0.1;
+            stroke: #667eea;
+            stroke-width: 2;
+            stroke-opacity: 0.5;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                flex-direction: column;
+                padding: 10px;
+            }
+
+            .sidebar {
+                width: 100%;
+                max-height: 300px;
+            }
+
+            .header {
+                padding: 10px;
+            }
+
+            .header h1 {
+                font-size: 18px;
+            }
+
+            .modal-content {
+                padding: 20px;
+            }
+        }
+
+        .leaflet-popup-content-wrapper {
+            border-radius: 8px;
+        }
+
+        .popup-content {
+            padding: 5px;
+        }
+
+        .popup-content h3 {
+            color: #667eea;
+            margin-bottom: 5px;
+            font-size: 16px;
+        }
+
+        .popup-content p {
+            color: #6b7280;
+            font-size: 12px;
+            margin: 2px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                <circle cx="12" cy="10" r="3"></circle>
+            </svg>
+            Live Location Tracker
+        </h1>
+        <div class="header-controls">
+            <input type="text" id="userName" class="name-input" placeholder="Enter your name" maxlength="30">
+            <button id="shareBtn" class="btn btn-primary">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                </svg>
+                Start Sharing
+            </button>
+            <button id="stopBtn" class="btn btn-danger" style="display: none;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="6" y="6" width="12" height="12"></rect>
+                </svg>
+                Stop Sharing
+            </button>
+            <div id="status" class="status inactive">
+                <span class="status-dot"></span>
+                Inactive
+            </div>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="sidebar">
+            <!-- PWA Install Banner -->
+            <div id="installBanner" class="pwa-install-banner">
+                <strong>📱 Install App</strong>
+                <p>Install for better GPS accuracy and offline access!</p>
+                <button id="installBtn" class="btn btn-success">Install Now</button>
+            </div>
+
+            <h2>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="9" cy="7" r="4"></circle>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                </svg>
+                Active Users (<span id="userCount">0</span>)
+            </h2>
+            <div id="accuracyInfo" class="accuracy-info" style="display: none;">
+                <strong>GPS Accuracy</strong>
+                <span id="accuracyText">Acquiring location...</span>
+            </div>
+            <div id="userList" class="user-list">
+                <div class="empty-state">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="9" cy="7" r="4"></circle>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                    </svg>
+                    <h3>No Active Users</h3>
+                    <p>Start sharing your location to see others</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="map-container">
+            <div id="map"></div>
+        </div>
+    </div>
+
+    <!-- Permission Modal -->
+    <div id="permissionModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-icon warning">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                        <line x1="12" y1="9" x2="12" y2="13"></line>
+                        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                    </svg>
+                </div>
+                <div class="modal-title">Location Permission Required</div>
+            </div>
+            <div class="modal-body">
+                <p>To share your location, please allow location access:</p>
+                <ul>
+                    <li><strong>Chrome/Brave:</strong> Tap the lock icon in the address bar → Site settings → Location → Allow</li>
+                    <li><strong>Safari:</strong> Settings → Safari → Location → Allow</li>
+                    <li><strong>Firefox:</strong> Tap the lock icon → Permissions → Location → Allow</li>
+                </ul>
+                <p style="margin-top: 10px;"><strong>Note:</strong> For best accuracy, make sure your device's GPS is enabled in system settings.</p>
+            </div>
+            <div class="modal-footer">
+                <button id="closeModal" class="btn btn-primary">Got it</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- HTTPS Warning Modal -->
+    <div id="httpsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-icon error">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                </div>
+                <div class="modal-title">Secure Connection Required</div>
+            </div>
+            <div class="modal-body">
+                <p>Location sharing requires a secure HTTPS connection or localhost.</p>
+                <p style="margin-top: 10px;"><strong>Options:</strong></p>
+                <ul>
+                    <li>Host this file on a web server with HTTPS</li>
+                    <li>Use a local development server</li>
+                    <li>Access via localhost (127.0.0.1)</li>
+                </ul>
+            </div>
+            <div class="modal-footer">
+                <button id="closeHttpsModal" class="btn btn-danger">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Register Service Worker for PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('service-worker.js')
+                    .then(registration => {
+                        console.log('ServiceWorker registered:', registration);
+                    })
+                    .catch(error => {
+                        console.log('ServiceWorker registration failed:', error);
+                    });
+            });
+        }
+
+        // PWA Install Prompt
+        let deferredPrompt;
+        const installBanner = document.getElementById('installBanner');
+        const installBtn = document.getElementById('installBtn');
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            installBanner.classList.add('show');
+        });
+
+        installBtn.addEventListener('click', async () => {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                console.log(`User response: ${outcome}`);
+                deferredPrompt = null;
+                installBanner.classList.remove('show');
+            }
+        });
+
+        window.addEventListener('appinstalled', () => {
+            console.log('PWA installed successfully');
+            installBanner.classList.remove('show');
+        });
+
+        // Initialize map
+        const map = L.map('map').setView([14.5995, 120.9842], 13);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 19
+        }).addTo(map);
+
+        // State management
+        const state = {
+            users: new Map(),
+            markers: new Map(),
+            accuracyCircles: new Map(),
+            myId: null,
+            watchId: null,
+            isSharing: false,
+            currentAccuracy: null
+        };
+
+        // Color palette for user markers
+        const colors = ['#667eea', '#764ba2', '#f093fb', '#4facfe', '#43e97b', '#fa709a', '#fee140', '#30cfd0'];
+        let colorIndex = 0;
+
+        // DOM elements
+        const userNameInput = document.getElementById('userName');
+        const shareBtn = document.getElementById('shareBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const statusEl = document.getElementById('status');
+        const userListEl = document.getElementById('userList');
+        const userCountEl = document.getElementById('userCount');
+        const accuracyInfoEl = document.getElementById('accuracyInfo');
+        const accuracyTextEl = document.getElementById('accuracyText');
+        const permissionModal = document.getElementById('permissionModal');
+        const httpsModal = document.getElementById('httpsModal');
+        const closeModalBtn = document.getElementById('closeModal');
+        const closeHttpsModalBtn = document.getElementById('closeHttpsModal');
+
+        // Check if geolocation is available and secure context
+        function checkGeolocationSupport() {
+            if (!navigator.geolocation) {
+                alert('Geolocation is not supported by your browser');
+                return false;
+            }
+
+            // Check for secure context (HTTPS or localhost)
+            if (!window.isSecureContext && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+                httpsModal.classList.add('show');
+                return false;
+            }
+
+            return true;
+        }
+
+        // Generate unique ID
+        function generateId() {
+            return 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        }
+
+        // Get user initials
+        function getInitials(name) {
+            return name
+                .split(' ')
+                .map(word => word[0])
+                .join('')
+                .toUpperCase()
+                .substr(0, 2);
+        }
+
+        // Format time ago
+        function timeAgo(timestamp) {
+            const seconds = Math.floor((Date.now() - timestamp) / 1000);
+            if (seconds < 60) return 'Just now';
+            const minutes = Math.floor(seconds / 60);
+            if (minutes < 60) return `${minutes}m ago`;
+            const hours = Math.floor(minutes / 60);
+            return `${hours}h ago`;
+        }
+
+        // Format accuracy
+        function formatAccuracy(accuracy) {
+            if (accuracy < 10) return `±${accuracy.toFixed(1)}m (Excellent)`;
+            if (accuracy < 50) return `±${accuracy.toFixed(0)}m (Good)`;
+            if (accuracy < 100) return `±${accuracy.toFixed(0)}m (Fair)`;
+            return `±${accuracy.toFixed(0)}m (Poor)`;
+        }
+
+        // Create custom marker icon
+        function createMarkerIcon(color, initials) {
+            return L.divIcon({
+                className: 'custom-marker',
+                html: `
+                    <div style="
+                        width: 40px;
+                        height: 40px;
+                        background: ${color};
+                        border: 3px solid white;
+                        border-radius: 50% 50% 50% 0;
+                        transform: rotate(-45deg);
+                        box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                    ">
+                        <span style="
+                            color: white;
+                            font-weight: bold;
+                            font-size: 14px;
+                            transform: rotate(45deg);
+                        ">${initials}</span>
+                    </div>
+                `,
+                iconSize: [40, 40],
+                iconAnchor: [20, 40],
+                popupAnchor: [0, -40]
+            });
+        }
+
+        // Update user marker and accuracy circle
+        function updateUserMarker(userId, userData) {
+            const { name, lat, lng, timestamp, accuracy } = userData;
+            const initials = getInitials(name);
+            
+            if (state.markers.has(userId)) {
+                // Update existing marker
+                const marker = state.markers.get(userId);
+                marker.setLatLng([lat, lng]);
+                marker.setPopupContent(`
+                    <div class="popup-content">
+                        <h3>${name}</h3>
+                        <p>📍 ${lat.toFixed(6)}, ${lng.toFixed(6)}</p>
+                        <p>🎯 ${formatAccuracy(accuracy)}</p>
+                        <p>🕐 ${new Date(timestamp).toLocaleTimeString()}</p>
+                    </div>
+                `);
+
+                // Update accuracy circle
+                if (state.accuracyCircles.has(userId)) {
+                    const circle = state.accuracyCircles.get(userId);
+                    circle.setLatLng([lat, lng]);
+                    circle.setRadius(accuracy);
+                }
+            } else {
+                // Create new marker
+                const color = colors[colorIndex % colors.length];
+                colorIndex++;
+                
+                const marker = L.marker([lat, lng], {
+                    icon: createMarkerIcon(color, initials)
+                }).addTo(map);
+                
+                marker.bindPopup(`
+                    <div class="popup-content">
+                        <h3>${name}</h3>
+                        <p>📍 ${lat.toFixed(6)}, ${lng.toFixed(6)}</p>
+                        <p>🎯 ${formatAccuracy(accuracy)}</p>
+                        <p>🕐 ${new Date(timestamp).toLocaleTimeString()}</p>
+                    </div>
+                `);
+                
+                // Create accuracy circle
+                const circle = L.circle([lat, lng], {
+                    radius: accuracy,
+                    className: 'accuracy-circle',
+                    color: color,
+                    fillColor: color,
+                    fillOpacity: 0.1,
+                    weight: 2,
+                    opacity: 0.5
+                }).addTo(map);
+                
+                state.markers.set(userId, marker);
+                state.accuracyCircles.set(userId, circle);
+                userData.color = color;
+            }
+        }
+
+        // Update user list UI
+        function updateUserList() {
+            const users = Array.from(state.users.entries());
+            userCountEl.textContent = users.length;
+
+            if (users.length === 0) {
+                userListEl.innerHTML = `
+                    <div class="empty-state">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                        </svg>
+                        <h3>No Active Users</h3>
+                        <p>Start sharing your location to see others</p>
+                    </div>
+                `;
+                return;
+            }
+
+            userListEl.innerHTML = users.map(([userId, userData]) => `
+                <div class="user-card ${userId === state.myId ? 'active' : ''}" data-user-id="${userId}">
+                    <div class="user-avatar" style="background: ${userData.color || colors[0]}">
+                        ${getInitials(userData.name)}
+                    </div>
+                    <div class="user-info">
+                        <div class="user-name">${userData.name}${userId === state.myId ? ' (You)' : ''}</div>
+                        <div class="user-time">${timeAgo(userData.timestamp)}</div>
+                        <div class="user-accuracy">${formatAccuracy(userData.accuracy)}</div>
+                    </div>
+                </div>
+            `).join('');
+
+            // Add click handlers to user cards
+            document.querySelectorAll('.user-card').forEach(card => {
+                card.addEventListener('click', () => {
+                    const userId = card.dataset.userId;
+                    const userData = state.users.get(userId);
+                    if (userData) {
+                        map.setView([userData.lat, userData.lng], 17);
+                        state.markers.get(userId).openPopup();
+                    }
+                });
+            });
+        }
+
+        // Start sharing location
+        function startSharing() {
+            const name = userNameInput.value.trim();
+            
+            if (!name) {
+                alert('Please enter your name first!');
+                userNameInput.focus();
+                return;
+            }
+
+            if (!checkGeolocationSupport()) {
+                return;
+            }
+
+            state.myId = generateId();
+            state.isSharing = true;
+
+            // Update UI
+            shareBtn.style.display = 'none';
+            stopBtn.style.display = 'flex';
+            userNameInput.disabled = true;
+            statusEl.className = 'status warning';
+            statusEl.innerHTML = '<span class="status-dot"></span> Acquiring GPS...';
+            accuracyInfoEl.style.display = 'block';
+
+            // PWA-optimized geolocation options for maximum accuracy
+            const options = {
+                enableHighAccuracy: true,  // Force GPS usage
+                timeout: 15000,             // 15 seconds timeout for better GPS lock
+                maximumAge: 0               // Always get fresh position
+            };
+
+            // Watch position with enhanced accuracy
+            state.watchId = navigator.geolocation.watchPosition(
+                (position) => {
+                    const accuracy = position.coords.accuracy;
+                    state.currentAccuracy = accuracy;
+
+                    const userData = {
+                        name: name,
+                        lat: position.coords.latitude,
+                        lng: position.coords.longitude,
+                        accuracy: accuracy,
+                        timestamp: Date.now()
+                    };
+
+                    // Update local state
+                    state.users.set(state.myId, userData);
+                    updateUserMarker(state.myId, userData);
+                    updateUserList();
+
+                    // Update accuracy info
+                    accuracyTextEl.textContent = formatAccuracy(accuracy);
+                    
+                    // Update status based on accuracy
+                    if (accuracy < 50) {
+                        statusEl.className = 'status active';
+                        statusEl.innerHTML = '<span class="status-dot"></span> Active (High Accuracy)';
+                    } else {
+                        statusEl.className = 'status warning';
+                        statusEl.innerHTML = '<span class="status-dot"></span> Active (Low Accuracy)';
+                    }
+
+                    // Center map on first location
+                    if (state.users.size === 1) {
+                        map.setView([userData.lat, userData.lng], 17);
+                    }
+
+                    // Store in localStorage for sharing
+                    saveToStorage();
+                },
+                (error) => {
+                    console.error('Geolocation error:', error);
+                    
+                    let errorMessage = 'Unable to get your location. ';
+                    switch(error.code) {
+                        case error.PERMISSION_DENIED:
+                            errorMessage += 'Location permission denied.';
+                            permissionModal.classList.add('show');
+                            break;
+                        case error.POSITION_UNAVAILABLE:
+                            errorMessage += 'Location information unavailable. Make sure GPS is enabled.';
+                            alert(errorMessage);
+                            break;
+                        case error.TIMEOUT:
+                            errorMessage += 'Location request timed out. Please try again.';
+                            alert(errorMessage);
+                            break;
+                        default:
+                            errorMessage += 'An unknown error occurred.';
+                            alert(errorMessage);
+                    }
+                    
+                    stopSharing();
+                },
+                options
+            );
+
+            // Request persistent storage for PWA
+            if (navigator.storage && navigator.storage.persist) {
+                navigator.storage.persist().then(granted => {
+                    console.log('Persistent storage:', granted);
+                });
+            }
+        }
+
+        // Stop sharing location
+        function stopSharing() {
+            if (state.watchId) {
+                navigator.geolocation.clearWatch(state.watchId);
+                state.watchId = null;
+            }
+
+            // Remove user from map
+            if (state.myId && state.markers.has(state.myId)) {
+                map.removeLayer(state.markers.get(state.myId));
+                state.markers.delete(state.myId);
+            }
+
+            if (state.myId && state.accuracyCircles.has(state.myId)) {
+                map.removeLayer(state.accuracyCircles.get(state.myId));
+                state.accuracyCircles.delete(state.myId);
+            }
+
+            if (state.myId) {
+                state.users.delete(state.myId);
+            }
+
+            state.myId = null;
+            state.isSharing = false;
+            state.currentAccuracy = null;
+
+            // Update UI
+            shareBtn.style.display = 'flex';
+            stopBtn.style.display = 'none';
+            userNameInput.disabled = false;
+            statusEl.className = 'status inactive';
+            statusEl.innerHTML = '<span class="status-dot"></span> Inactive';
+            accuracyInfoEl.style.display = 'none';
+
+            updateUserList();
+            removeFromStorage();
+        }
+
+        // LocalStorage management (simulating real-time sharing)
+        function saveToStorage() {
+            const allUsers = JSON.parse(localStorage.getItem('locationUsers') || '{}');
+            const myData = state.users.get(state.myId);
+            allUsers[state.myId] = myData;
+            localStorage.setItem('locationUsers', JSON.stringify(allUsers));
+        }
+
+        function removeFromStorage() {
+            const allUsers = JSON.parse(localStorage.getItem('locationUsers') || '{}');
+            delete allUsers[state.myId];
+            localStorage.setItem('locationUsers', JSON.stringify(allUsers));
+        }
+
+        function loadFromStorage() {
+            const allUsers = JSON.parse(localStorage.getItem('locationUsers') || '{}');
+            const now = Date.now();
+
+            // Remove stale users (older than 5 minutes)
+            Object.keys(allUsers).forEach(userId => {
+                if (now - allUsers[userId].timestamp > 5 * 60 * 1000) {
+                    delete allUsers[userId];
+                }
+            });
+
+            localStorage.setItem('locationUsers', JSON.stringify(allUsers));
+
+            // Update map with other users
+            Object.entries(allUsers).forEach(([userId, userData]) => {
+                if (userId !== state.myId) {
+                    state.users.set(userId, userData);
+                    updateUserMarker(userId, userData);
+                }
+            });
+
+            updateUserList();
+        }
+
+        // Event listeners
+        shareBtn.addEventListener('click', startSharing);
+        stopBtn.addEventListener('click', stopSharing);
+        closeModalBtn.addEventListener('click', () => {
+            permissionModal.classList.remove('show');
+        });
+        closeHttpsModalBtn.addEventListener('click', () => {
+            httpsModal.classList.remove('show');
+        });
+
+        // Periodic updates - faster for PWA
+        setInterval(() => {
+            if (state.isSharing) {
+                loadFromStorage();
+                updateUserList();
+            }
+        }, 1500); // 1.5 seconds for smoother real-time updates
+
+        // Load initial data
+        loadFromStorage();
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (state.isSharing) {
+                removeFromStorage();
+            }
+        });
+
+        // Wake lock to prevent screen sleep during tracking (PWA feature)
+        let wakeLock = null;
+        async function requestWakeLock() {
+            if ('wakeLock' in navigator) {
+                try {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    console.log('Wake lock activated');
+                } catch (err) {
+                    console.log('Wake lock error:', err);
+                }
+            }
+        }
+
+        // Request wake lock when sharing starts
+        shareBtn.addEventListener('click', requestWakeLock);
+    </script>
+</body>
+</html>
