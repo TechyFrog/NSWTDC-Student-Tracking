@@ -2,7 +2,7 @@
   "name": "Live Location Tracker",
   "short_name": "LocationTracker",
   "description": "Real-time GPS location sharing with multiple users",
-  "start_url": "/location-tracker.html",
+  "start_url": "/index.html",
   "display": "standalone",
   "background_color": "#667eea",
   "theme_color": "#667eea",
