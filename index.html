@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Location Tracker">
+    <meta name="theme-color" content="#667eea">
+    <meta name="description" content="Real-time GPS location sharing with multiple users">
+    
+    <title>Live Location Tracker v2</title>
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- App Icons -->
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .header h1 {
+            color: #667eea;
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .version-badge {
+            background: #10b981;
+            color: white;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .name-input {
+            padding: 10px 15px;
+            border: 2px solid #667eea;
+            border-radius: 8px;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.3s;
+        }
+
+        .name-input:focus {
+            border-color: #764ba2;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+        }
+
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .status {
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .status.active {
+            background: #10b981;
+            color: white;
+        }
+
+        .status.inactive {
+            background: #6b7280;
+            color: white;
+        }
+
+        .status.warning {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .status.connecting {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: white;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            padding: 20px;
+            gap: 20px;
+            max-width: 1400px;
+            width: 100%;
+            margin: 0 auto;
+        }
+
+        .sidebar {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            padding: 20px;
+            width: 300px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            overflow-y: auto;
+            max-height: calc(100vh - 140px);
+        }
+
+        .sidebar h2 {
+            color: #667eea;
+            font-size: 18px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .pwa-install-banner {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            font-size: 12px;
+            display: none;
+        }
+
+        .pwa-install-banner.show {
+            display: block;
+        }
+
+        .pwa-install-banner button {
+            margin-top: 8px;
+            width: 100%;
+        }
+
+        .firebase-status {
+            background: #f0f4ff;
+            border-left: 3px solid #3b82f6;
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #4b5563;
+        }
+
+        .firebase-status.connected {
+            border-left-color: #10b981;
+            background: #f0fdf4;
+        }
+
+        .firebase-status.error {
+            border-left-color: #ef4444;
+            background: #fef2f2;
+        }
+
+        .firebase-status strong {
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .accuracy-info {
+            background: #f0f4ff;
+            border-left: 3px solid #667eea;
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #4b5563;
+        }
+
+        .accuracy-info strong {
+            color: #667eea;
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .user-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .user-card {
+            background: white;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .user-card:hover {
+            border-color: #667eea;
+            transform: translateX(5px);
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+        }
+
+        .user-card.active {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+
+        .user-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .user-name {
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .user-time {
+            font-size: 11px;
+            color: #6b7280;
+        }
+
+        .user-accuracy {
+            font-size: 10px;
+            color: #10b981;
+            margin-top: 2px;
+        }
+
+        .map-container {
+            flex: 1;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+            min-height: 500px;
+        }
+
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            text-align: center;
+            color: #6b7280;
+        }
+
+        .empty-state svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        .empty-state h3 {
+            font-size: 18px;
+            margin-bottom: 8px;
+        }
+
+        .empty-state p {
+            font-size: 14px;
+        }
+
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 10000;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .modal-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-icon.warning {
+            background: #fef3c7;
+            color: #f59e0b;
+        }
+
+        .modal-icon.error {
+            background: #fee2e2;
+            color: #ef4444;
+        }
+
+        .modal-icon.info {
+            background: #dbeafe;
+            color: #3b82f6;
+        }
+
+        .modal-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #1f2937;
+        }
+
+        .modal-body {
+            color: #4b5563;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        .modal-body ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+
+        .modal-body li {
+            margin: 5px 0;
+        }
+
+        .modal-body code {
+            background: #f3f4f6;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+
+        .modal-footer {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .accuracy-circle {
+            fill: #667eea;
+            fill-opacity: 0.1;
+            stroke: #667eea;
+            stroke-width: 2;
+            stroke-opacity: 0.5;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                flex-direction: column;
+                padding: 10px;
+            }
+
+            .sidebar {
+                width: 100%;
+                max-height: 300px;
+            }
+
+            .header {
+                padding: 10px;
+            }
+
+            .header h1 {
+                font-size: 18px;
+            }
+
+            .modal-content {
+                padding: 20px;
+            }
+        }
+
+        .leaflet-popup-content-wrapper {
+            border-radius: 8px;
+        }
+
+        .popup-content {
+            padding: 5px;
+        }
+
+        .popup-content h3 {
+            color: #667eea;
+            margin-bottom: 5px;
+            font-size: 16px;
+        }
+
+        .popup-content p {
+            color: #6b7280;
+            font-size: 12px;
+            margin: 2px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                <circle cx="12" cy="10" r="3"></circle>
+            </svg>
+            Live Location Tracker
+            <span class="version-badge">v2</span>
+        </h1>
+        <div class="header-controls">
+            <input type="text" id="userName" class="name-input" placeholder="Enter your name" maxlength="30">
+            <button id="shareBtn" class="btn btn-primary">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                </svg>
+                Start Sharing
+            </button>
+            <button id="stopBtn" class="btn btn-danger" style="display: none;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="6" y="6" width="12" height="12"></rect>
+                </svg>
+                Stop Sharing
+            </button>
+            <div id="status" class="status inactive">
+                <span class="status-dot"></span>
+                Inactive
+            </div>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="sidebar">
+            <!-- PWA Install Banner -->
+            <div id="installBanner" class="pwa-install-banner">
+                <strong>📱 Install App</strong>
+                <p>Install for better GPS accuracy and offline access!</p>
+                <button id="installBtn" class="btn btn-success">Install Now</button>
+            </div>
+
+            <!-- Firebase Status -->
+            <div id="firebaseStatus" class="firebase-status">
+                <strong>🔄 Connecting to server...</strong>
+                <span id="firebaseStatusText">Initializing real-time sync</span>
+            </div>
+
+            <h2>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="9" cy="7" r="4"></circle>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                </svg>
+                Active Users (<span id="userCount">0</span>)
+            </h2>
+            <div id="accuracyInfo" class="accuracy-info" style="display: none;">
+                <strong>GPS Accuracy</strong>
+                <span id="accuracyText">Acquiring location...</span>
+            </div>
+            <div id="userList" class="user-list">
+                <div class="empty-state">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="9" cy="7" r="4"></circle>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                    </svg>
+                    <h3>No Active Users</h3>
+                    <p>Start sharing your location to see others</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="map-container">
+            <div id="map"></div>
+        </div>
+    </div>
+
+    <!-- Firebase Config Modal -->
+    <div id="configModal" class="modal show">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-icon info">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="16" x2="12" y2="12"></line>
+                        <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                    </svg>
+                </div>
+                <div class="modal-title">Firebase Setup Required</div>
+            </div>
+            <div class="modal-body">
+                <p>To enable real-time location sharing across devices, you need to configure Firebase:</p>
+                <ol style="margin: 10px 0; padding-left: 20px;">
+                    <li>Go to <a href="https://console.firebase.google.com" target="_blank">Firebase Console</a></li>
+                    <li>Create a new project (or use existing)</li>
+                    <li>Add a Web app to your project</li>
+                    <li>Copy the config values</li>
+                    <li>Edit <code>firebase-config.js</code> with your values</li>
+                    <li>Enable Realtime Database in Firebase Console</li>
+                </ol>
+                <p style="margin-top: 10px;"><strong>See FIREBASE_SETUP.md for detailed instructions!</strong></p>
+            </div>
+            <div class="modal-footer">
+                <button id="closeConfigModal" class="btn btn-primary">I'll set it up later</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Permission Modal -->
+    <div id="permissionModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-icon warning">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                        <line x1="12" y1="9" x2="12" y2="13"></line>
+                        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                    </svg>
+                </div>
+                <div class="modal-title">Location Permission Required</div>
+            </div>
+            <div class="modal-body">
+                <p>To share your location, please allow location access:</p>
+                <ul>
+                    <li><strong>Chrome/Brave:</strong> Tap the lock icon in the address bar → Site settings → Location → Allow</li>
+                    <li><strong>Safari:</strong> Settings → Safari → Location → Allow</li>
+                    <li><strong>Firefox:</strong> Tap the lock icon → Permissions → Location → Allow</li>
+                </ul>
+                <p style="margin-top: 10px;"><strong>Note:</strong> For best accuracy, make sure your device's GPS is enabled in system settings.</p>
+            </div>
+            <div class="modal-footer">
+                <button id="closeModal" class="btn btn-primary">Got it</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- HTTPS Warning Modal -->
+    <div id="httpsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-icon error">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                </div>
+                <div class="modal-title">Secure Connection Required</div>
+            </div>
+            <div class="modal-body">
+                <p>Location sharing requires a secure HTTPS connection or localhost.</p>
+                <p style="margin-top: 10px;"><strong>Options:</strong></p>
+                <ul>
+                    <li>Host this file on a web server with HTTPS</li>
+                    <li>Use GitHub Pages (free HTTPS)</li>
+                    <li>Access via localhost (127.0.0.1)</li>
+                </ul>
+            </div>
+            <div class="modal-footer">
+                <button id="closeHttpsModal" class="btn btn-danger">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    
+    <!-- Firebase Config -->
+    <script src="firebase-config.js"></script>
+    
+    <!-- Leaflet Maps -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- Main App Script -->
+    <script src="app.js"></script>
+</body>
+</html>
